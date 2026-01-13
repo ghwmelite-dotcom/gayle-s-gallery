@@ -1,0 +1,11 @@
+#:schema node_modules/@opennextjs/cloudflare/wrangler-schema.json
+
+name = "gayles-gallery"
+compatibility_date = "2024-12-30"
+compatibility_flags = ["nodejs_compat"]
+
+main = ".open-next/worker.js"
+assets = { directory = ".open-next/assets", binding = "ASSETS" }
+
+[vars]
+# Environment variables are set in Cloudflare dashboard
