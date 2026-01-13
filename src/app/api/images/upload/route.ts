@@ -4,7 +4,7 @@ import { processUploadedImage, validateImageFile } from '@/lib/images/watermark'
 
 export async function POST(request: NextRequest) {
   try {
-    const supabase = createClient()
+    const supabase = await createClient()
 
     // Verify authentication
     const { data: { session } } = await supabase.auth.getSession()
