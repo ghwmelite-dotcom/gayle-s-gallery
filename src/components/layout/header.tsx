@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Menu, X, Heart, Palette } from 'lucide-react'
+import { Menu, X, Heart, Palette, BookOpen } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 
@@ -12,6 +12,7 @@ const navLinks = [
   { href: '/', label: 'Home' },
   { href: '/gallery', label: 'Gallery' },
   { href: '/about', label: 'About Gayle' },
+  { href: '/guestbook', label: 'Guestbook', icon: BookOpen },
   { href: '/support', label: 'Support', icon: Heart },
 ]
 
