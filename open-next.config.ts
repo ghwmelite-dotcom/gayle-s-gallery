@@ -8,7 +8,7 @@ const config: OpenNextConfig = {
       proxyExternalRequest: "fetch",
       incrementalCache: "dummy",
       tagCache: "dummy",
-      queue: "direct",
+      queue: "dummy",
     },
   },
   middleware: {
@@ -19,7 +19,7 @@ const config: OpenNextConfig = {
       proxyExternalRequest: "fetch",
       incrementalCache: "dummy",
       tagCache: "dummy",
-      queue: "direct",
+      queue: "dummy",
     },
   },
 };
