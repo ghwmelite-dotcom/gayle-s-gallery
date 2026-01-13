@@ -1,25 +1,37 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { processUploadedImage, validateImageFile } from '@/lib/images/watermark'
+
+export const runtime = 'edge'
+
+// Simple file validation (without Sharp)
+function validateImageFile(file: { type: string; size: number }) {
+  const allowedTypes = ['image/jpeg', 'image/png', 'image/webp']
+  const maxSize = 10 * 1024 * 1024 // 10MB
+
+  if (!allowedTypes.includes(file.type)) {
+    return { valid: false, error: 'Invalid file type. Please upload JPEG, PNG, or WebP.' }
+  }
+
+  if (file.size > maxSize) {
+    return { valid: false, error: 'File too large. Maximum size is 10MB.' }
+  }
+
+  return { valid: true }
+}
 
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient()
 
     // Verify authentication
-    const { data: { session } } = await supabase.auth.getSession()
-    if (!session) {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     // Verify admin role
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', session.user.id)
-      .single()
-
-    if (profile?.role !== 'admin') {
+    const { data: isAdmin } = await supabase.rpc('is_admin')
+    if (!isAdmin) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
@@ -42,48 +54,26 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: validation.error }, { status: 400 })
     }
 
-    // Process image
-    const buffer = Buffer.from(await file.arrayBuffer())
-    const processed = await processUploadedImage(buffer, artworkId)
+    // Get file buffer
+    const buffer = await file.arrayBuffer()
+    const uint8Array = new Uint8Array(buffer)
 
     // Generate unique filename
     const timestamp = Date.now()
+    const extension = file.type.split('/')[1]
     const baseName = `${artworkId}/${timestamp}`
 
-    // Upload to Supabase Storage (all three versions)
-    const [originalUpload, watermarkedUpload, thumbnailUpload] = await Promise.all([
-      supabase.storage
-        .from('originals')
-        .upload(`${baseName}.jpg`, processed.original, {
-          contentType: 'image/jpeg',
-          cacheControl: '31536000', // 1 year
-        }),
-      supabase.storage
-        .from('watermarked')
-        .upload(`${baseName}.jpg`, processed.watermarked, {
-          contentType: 'image/jpeg',
-          cacheControl: '31536000',
-        }),
-      supabase.storage
-        .from('thumbnails')
-        .upload(`${baseName}.webp`, processed.thumbnail, {
-          contentType: 'image/webp',
-          cacheControl: '31536000',
-        }),
-    ])
+    // Upload to Supabase Storage (single version for now - watermarking disabled on Edge)
+    const { data: uploadData, error: uploadError } = await supabase.storage
+      .from('gallery')
+      .upload(`${baseName}.${extension}`, uint8Array, {
+        contentType: file.type,
+        cacheControl: '31536000',
+      })
 
-    // Check for upload errors
-    if (originalUpload.error) {
-      console.error('Original upload error:', originalUpload.error)
-      return NextResponse.json({ error: 'Failed to upload original image' }, { status: 500 })
-    }
-    if (watermarkedUpload.error) {
-      console.error('Watermarked upload error:', watermarkedUpload.error)
-      return NextResponse.json({ error: 'Failed to upload watermarked image' }, { status: 500 })
-    }
-    if (thumbnailUpload.error) {
-      console.error('Thumbnail upload error:', thumbnailUpload.error)
-      return NextResponse.json({ error: 'Failed to upload thumbnail' }, { status: 500 })
+    if (uploadError) {
+      console.error('Upload error:', uploadError)
+      return NextResponse.json({ error: 'Failed to upload image' }, { status: 500 })
     }
 
     // Create database record
@@ -91,14 +81,11 @@ export async function POST(request: NextRequest) {
       .from('artwork_images')
       .insert({
         artwork_id: artworkId,
-        original_path: originalUpload.data.path,
-        watermarked_path: watermarkedUpload.data.path,
-        thumbnail_path: thumbnailUpload.data.path,
-        width: processed.width,
-        height: processed.height,
-        file_size: processed.fileSize,
-        mime_type: processed.mimeType,
-        original_hash: processed.hash,
+        original_path: uploadData.path,
+        watermarked_path: uploadData.path, // Same as original for now
+        thumbnail_path: uploadData.path,
+        file_size: file.size,
+        is_primary: true,
       })
       .select()
       .single()
@@ -110,7 +97,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       image: imageRecord,
-      message: 'Image uploaded and watermarked successfully',
+      message: 'Image uploaded successfully',
     })
   } catch (error) {
     console.error('Upload error:', error)
