@@ -1,3 +1,5 @@
+export const runtime = 'edge'
+
 import { Suspense } from 'react'
 import { PageWrapper } from '@/components/layout/page-wrapper'
 import { MasonryGallery } from '@/components/gallery/masonry-gallery'
